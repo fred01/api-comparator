@@ -7,13 +7,13 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.config.*
+import io.ktor.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import org.slf4j.LoggerFactory
 import java.time.Instant
 
 @Serializable
@@ -31,12 +31,12 @@ data class ResponseInfo(
     val responseTime: Long,
     val requestId: String,
     val status: Int,
-    val body: String
+    val body: String,
+    val headers: Map<String, List<String>>
 )
 
 
 class RequestService(config: Config, private val statService: StatService) {
-    private val logger = LoggerFactory.getLogger("RequestService")
     val asyncRequestChannel = Channel<RequestInfo>(10000)
     private val referenceBaseUrl =
         config.tryGetString("api.reference.baseUrl") ?: throw IllegalStateException("Reference URL not set")
@@ -61,6 +61,7 @@ class RequestService(config: Config, private val statService: StatService) {
         CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             daemonCoroutine {
                 for (requestInfo in asyncRequestChannel) {
+                    statService.storeRequestChannel.send(requestInfo)
                     val responseInfo = sampleHttpClient.request(configureHttpRequest(requestInfo, sampleBaseUrl)).toResponseInfo(requestInfo.requestId)
                     statService.storeSampleChannel.send(responseInfo)
                 }
@@ -87,10 +88,13 @@ class RequestService(config: Config, private val statService: StatService) {
         }
     }
 
-    private suspend fun HttpResponse.toResponseInfo(requestId: String): ResponseInfo = ResponseInfo(
-        responseTime = Instant.now().toEpochMilli(),
-        requestId = requestId,
-        status = status.value,
-        body = bodyAsText()
-    )
+    private suspend fun HttpResponse.toResponseInfo(requestId: String): ResponseInfo {
+        return ResponseInfo(
+            responseTime = Instant.now().toEpochMilli(),
+            requestId = requestId,
+            status = status.value,
+            body = bodyAsText(),
+            headers = headers.toMap()
+        )
+    }
 }

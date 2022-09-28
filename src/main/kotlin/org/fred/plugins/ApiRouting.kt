@@ -28,14 +28,18 @@ fun Application.configureApiRouting(requestService: RequestService) {
                     call.request.headers.toMap()
                 )
                 application.log.info("Request ${requestInfo.requestId}")
+
                 requestService.asyncRequestChannel.send(requestInfo)
 
                 val response = requestService.executeReferenceRequest(requestInfo)
-                call.response.status(HttpStatusCode.Created)
-                // call.response.headers.append("Content-type", "application/json")
-                call.respondText("""
-                    {"a":"b"}
-                """.trimIndent())
+
+
+                call.response.status(HttpStatusCode.fromValue(response.status))
+                response.headers.forEach {
+                    call.response.headers.append(it.key, it.value.first())
+                }
+
+                call.respondText(response.body)
             }
         }
 //        get("/") {

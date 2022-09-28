@@ -10,13 +10,24 @@ fun Application.configureStatRouting(statService: StatService) {
 
     routing {
         get("/stat") {
-            call.respondText("Hello World!")
+            call.respondText("Hello World!") // TODO: General stat, like total requests count, failed and so on
         }
-        get("/requests") {
-            call.respondText("Hello World!")
+        get("/stat/requests") {
+            call.respond(statService.getRequestsList())
         }
-        get("/request/{requestId}") {
-            call.respondText("Hello World!")
+        get("/stat/request/{requestId}") {
+            val requestId = call.parameters["requestId"]
+            if (requestId == null) {
+                call.respondText("Missed required parameter")
+                return@get
+            }
+            val requestStat = statService.getRequestStat(requestId)
+            if (requestStat == null) {
+                call.respondText("Request with ID: $requestId not found")
+                return@get
+            }
+
+            call.respond(requestStat)
         }
     }
 }
