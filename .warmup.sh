@@ -1,1 +1,1 @@
-./mvnw build
+./mvnw compile
